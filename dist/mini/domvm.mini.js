@@ -1654,9 +1654,40 @@ if (typeof flyd != "undefined") {
 	});
 }
 
+// allows for children to be spread OR explicit array
+function defineElementSpreader(flags) {
+	return function() {
+		var args = arguments,
+			len = args.length,
+			tag = args[0],
+			body,
+			attrs;
+
+		if (len > 1) {
+			var bodyIdx = 1;
+
+			if (isObj(args[1])) {
+				attrs = args[1];
+				bodyIdx = 2;
+			}
+
+			if (len == bodyIdx + 1) {
+				var last = args[bodyIdx];
+				body = isVal(last) || isArr(last) ? last : [last];
+			}
+			else
+				{ body = Array.prototype.slice.call(args, bodyIdx); }
+		}
+
+		return defineElement(tag, attrs, body, flags);
+	};
+}
+
 micro$1.streamCfg = streamCfg;
 
 micro$1.prop = prop;
+
+micro$1.defineElementSpreader = defineElementSpreader;
 
 return micro$1;
 
