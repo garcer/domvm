@@ -11,6 +11,29 @@ export function createTextNode(body) {
 	return document.createTextNode(body);
 }
 
+export function createComment(body) {
+	return document.createComment(body);
+}
+
+export function createFragment() {
+	return document.createDocumentFragment();
+}
+
+/*
+these only need to run when el._node.vmid != null
+export function firstChild(el) {
+	if (el.nodeType == 8 && el._frag != null)
+		return el.
+	return el.firstChild;
+}
+
+export function lastChild(el) {
+	if (el.nodeType == 8 && el._frag != null)
+
+	return el.lastChild;
+}
+*/
+
 // ? removes if !recycled
 export function nextSib(sib) {
 	return sib.nextSibling;

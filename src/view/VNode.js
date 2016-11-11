@@ -20,6 +20,9 @@ export const VNodeProto = VNode.prototype = {
 
 	vmid:	null,
 
+	// if fragment node, this is set to a [head, tail] tuple of wrapping CommentNodes
+	_frag: null,
+
 	// all this stuff can just live in attrs (as defined) just have getters here for it
 	key:	null,
 	ref:	null,

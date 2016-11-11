@@ -116,6 +116,9 @@ export const ViewModelProto = ViewModel.prototype = {
 		return vm;
 	},
 
+	// if fragment view, this is set to a [head, tail] tuple of wrapping CommentNodes
+	_frag: null,
+
 	_update: updateSync,
 	_redraw: redrawSync,	// non-coalesced / synchronous
 	_redrawAsync: null,		// this is set in constructor per view
@@ -287,6 +290,8 @@ function redrawSync(newParent, newIdx, withDOM) {
 
 
 	var vnew = vm.render.call(vm.api, vm, vm.model, vm.key);		// vm.opts
+
+
 
 //	console.log(vm.key);
 

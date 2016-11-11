@@ -16,9 +16,11 @@
 var ELEMENT	= 1;
 var TEXT		= 2;
 var COMMENT	= 3;
+var FRAGMENT	= 4;
+
 // placeholder nodes
-var VVIEW		= 4;
-var VMODEL		= 5;
+var VVIEW		= 5;
+var VMODEL		= 6;
 
 var ENV_DOM = typeof HTMLElement == "function";
 var win = ENV_DOM ? window : {};
@@ -448,6 +450,9 @@ var VNodeProto = VNode.prototype = {
 
 	vmid:	null,
 
+	// if fragment node, this is set to a [head, tail] tuple of wrapping CommentNodes
+	_frag: null,
+
 	// all this stuff can just live in attrs (as defined) just have getters here for it
 	key:	null,
 	ref:	null,
@@ -606,6 +611,29 @@ function createTextNode(body) {
 	return document.createTextNode(body);
 }
 
+function createComment(body) {
+	return document.createComment(body);
+}
+
+function createFragment() {
+	return document.createDocumentFragment();
+}
+
+/*
+these only need to run when el._node.vmid != null
+export function firstChild(el) {
+	if (el.nodeType == 8 && el._frag != null)
+		return el.
+	return el.firstChild;
+}
+
+export function lastChild(el) {
+	if (el.nodeType == 8 && el._frag != null)
+
+	return el.lastChild;
+}
+*/
+
 // ? removes if !recycled
 function nextSib(sib) {
 	return sib.nextSibling;
@@ -717,24 +745,8 @@ function hydrate(vnode, withEl) {
 			if (vnode.attrs != null)
 				{ patchAttrs2(vnode); }
 
-			if (isArr(vnode.body)) {
-				for (var i = 0; i < vnode.body.length; i++) {
-					var vnode2 = vnode.body[i];
-					var type2 = vnode2.type;
-
-					if (type2 == ELEMENT || type2 == TEXT || type2 == COMMENT)
-						{ insertBefore(vnode.el, hydrate(vnode2)); }		// vnode.el.appendChild(hydrate(vnode2))
-					else if (type2 == VVIEW) {
-						var vm = createView(vnode2.view, vnode2.model, vnode2.key, vnode2.opts)._redraw(vnode, i, false);		// todo: handle new model updates
-						insertBefore(vnode.el, hydrate(vm.node));
-					}
-					else if (type2 == VMODEL) {
-						var vm = views[vnode2.vmid];
-						vm._redraw(vnode, i);					// , false
-						insertBefore(vnode.el, vm.node.el);		// , hydrate(vm.node)
-					}
-				}
-			}
+			if (isArr(vnode.body))
+				{ hydrateBodyArr(vnode); }
 			else if (vnode.body != null && vnode.body !== "") {
 				if (vnode.raw)
 					{ vnode.el.innerHTML = vnode.body; }
@@ -744,11 +756,41 @@ function hydrate(vnode, withEl) {
 		}
 		else if (vnode.type === TEXT)
 			{ vnode.el = withEl || createTextNode(vnode.body); }
+		else if (vnode.type === FRAGMENT) {
+			var head = createComment(vnode.vmid),
+				tail = createComment("/" + vnode.vmid);
+
+			head._node = tail._node = vnode;
+			vnode._frag = [head, tail];
+			vnode.el = createFragment();
+			insertBefore(vnode.el, head);
+			hydrateBodyArr(vnode);
+			insertBefore(vnode.el, tail);
+		}
 	}
 
 	vnode.el._node = vnode;
 
 	return vnode.el;
+}
+
+function hydrateBodyArr(vnode) {
+	for (var i = 0; i < vnode.body.length; i++) {
+		var vnode2 = vnode.body[i];
+		var type2 = vnode2.type;
+
+		if (type2 == ELEMENT || type2 == TEXT || type2 == COMMENT)
+			{ insertBefore(vnode.el, hydrate(vnode2)); }		// vnode.el.appendChild(hydrate(vnode2))
+		else if (type2 == VVIEW) {
+			var vm = createView(vnode2.view, vnode2.model, vnode2.key, vnode2.opts)._redraw(vnode, i, false);		// todo: handle new model updates
+			insertBefore(vnode.el, hydrate(vm.node));
+		}
+		else if (type2 == VMODEL) {
+			var vm = views[vnode2.vmid];
+			vm._redraw(vnode, i);					// , false
+			insertBefore(vnode.el, vm.node.el);		// , hydrate(vm.node)
+		}
+	}
 }
 
 //import { DEBUG } from './DEBUG';
@@ -1266,6 +1308,9 @@ var ViewModelProto = ViewModel.prototype = {
 		return vm;
 	},
 
+	// if fragment view, this is set to a [head, tail] tuple of wrapping CommentNodes
+	_frag: null,
+
 	_update: updateSync,
 	_redraw: redrawSync,	// non-coalesced / synchronous
 	_redrawAsync: null,		// this is set in constructor per view
@@ -1402,6 +1447,8 @@ function redrawSync(newParent, newIdx, withDOM) {
 
 	var vnew = vm.render.call(vm.api, vm, vm.model, vm.key);		// vm.opts
 
+
+
 //	console.log(vm.key);
 
 	vm.node = vnew;
@@ -1487,6 +1534,12 @@ function defineComment(body) {
 	return new VNode(COMMENT).body(body);
 }
 
+function defineFragment(body) {
+	var node = new VNode(FRAGMENT);
+	node.body = body;
+	return node;
+}
+
 // placeholder for declared views
 function VView(view, model, key, opts) {
 	this.view = view;
@@ -1545,6 +1598,7 @@ var nano = {
 	defineElement: defineElement,
 	defineText: defineText,
 	defineComment: defineComment,
+	defineFragment: defineFragment,
 	defineView: defineView,
 
 	injectView: injectView,

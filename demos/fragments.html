@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+	<head>
+		<title>domvm.js - fragments</title>
+
+		<script src="../dist/nano/domvm.nano.js"></script>
+
+		<style>
+			.warn {
+				background: pink;
+			}
+		</style>
+	</head>
+	<body>
+		<script>
+			var el = domvm.defineElement,
+				fr = domvm.defineFragment,
+				vw = domvm.defineView;
+
+			function TableView(vm, table) {
+				return function() {
+					return el("table", [
+						vw(TableGutsView, table)
+					]);
+				};
+			}
+
+			function TableGutsView(vm, table) {
+				return function() {
+					return fr([
+						el("thead", [
+							el("tr", Object.keys(table[0]).map(col =>
+								el("th", col)
+							))
+						]),
+						el("tbody", table.map(item =>
+							vw(TableItemView, item)
+						)),
+						el("tfoot"),
+					]);
+				};
+			}
+
+			function TableItemView(vm, item) {
+				return function() {
+					return fr([
+						el("tr", [
+							el("td", item.sku),
+							el("td", item.price),
+							el("td", item.qty),
+						]),
+						item.qty == 1 ? el("tr.warn", [el("td", {colspan: 3}, "^ One Left! ^")]) : null,
+					]);
+				}
+			}
+
+			var table = [
+				{sku: "a", price: 10.00, qty: 2},
+				{sku: "c", price: 30.00, qty: 1},
+				{sku: "b", price: 20.00, qty: 3},
+			];
+
+			domvm.createView(TableView, table).mount(document.body);
+		</script>
+	</body>
+</html>
