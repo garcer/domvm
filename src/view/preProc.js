@@ -27,8 +27,12 @@ export function preProc(vnew, parent, idx, ownVmid, extKey) {		// , parentVm
 	// injected and declared elems/text/comments/fragments
 	else {
 		// convert any non-root fragment nodes to plain arrays
-		if (vnew.type === FRAGMENT && ownVmid == null)
-			parent.body = vnew.body;
+		if (vnew.type === FRAGMENT && ownVmid == null) {
+			parent.body.push.apply(parent.body, vnew.body);
+			vnew = parent;
+			// this must dig through layers of fragments
+			// figure out own indcies in parent, only iterate parent body partially..
+		}
 		else {
 			vnew.parent = parent;
 			vnew.idx = idx;

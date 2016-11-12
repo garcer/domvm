@@ -21,7 +21,7 @@ export const VNodeProto = VNode.prototype = {
 	vmid:	null,
 
 	// if fragment node, this is set to a [head, tail] tuple of wrapping CommentNodes
-	_frag: null,
+	_frag:	null,
 
 	// all this stuff can just live in attrs (as defined) just have getters here for it
 	key:	null,
@@ -41,6 +41,8 @@ export const VNodeProto = VNode.prototype = {
 
 	idx:	null,
 	parent:	null,
+
+//	recycled: false,
 
 	// transient flags maintained for cleanup passes, delayed hooks, etc
 //	_recycled:		false,		// true when findDonor/graft pass is done

@@ -3,20 +3,32 @@ import { fireHooks } from './hooks';
 import { views } from './ViewModel';
 import { FIXED_BODY, FAST_REMOVE } from './defineElement';
 
+const doc = document;
+
 export function createElement(tag) {
-	return document.createElement(tag);
+	return doc.createElement(tag);
 }
 
 export function createTextNode(body) {
-	return document.createTextNode(body);
+	return doc.createTextNode(body);
 }
 
 export function createComment(body) {
-	return document.createComment(body);
+	return doc.createComment(body);
 }
 
+
 export function createFragment() {
-	return document.createDocumentFragment();
+	return doc.createDocumentFragment();
+}
+
+// gets closest dom parentNode given a vnode
+export function parentEl(node) {
+	do {
+		node = node.parent;
+		if (node != null && node.el != null && node.el.nodeType == 1)
+			return node.el;
+	} while (1);
 }
 
 /*

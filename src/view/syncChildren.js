@@ -1,5 +1,6 @@
+import { FRAGMENT } from './VTYPES';
 import { hydrate } from './hydrate';
-import { prevSib, nextSib, insertBefore, insertAfter, removeChild } from './dom';
+import { prevSib, nextSib, insertBefore, insertAfter, removeChild, parentEl } from './dom';
 
 //import { DEBUG } from './DEBUG';
 
@@ -76,14 +77,16 @@ function cmpElNodeIdx(a, b) {
 	return a._node.idx - b._node.idx;
 }
 
-export function syncChildren(node, parEl) {
+export function syncChildren(node) {
+	var parEl = node.type == FRAGMENT ? parentEl(node) : node.el;
 	var body = node.body;
+
 	// breaking condition is convergance
 
 	var lftNode		= body[0],
-		lftSib		= parEl.firstChild,
+		lftSib		= node.type == FRAGMENT ? nextSib(node.vm()._frag[0]) : parEl.firstChild,
 		rgtNode		= body[body.length - 1],
-		rgtSib		= parEl.lastChild,
+		rgtSib		= node.type == FRAGMENT ? prevSib(node.vm()._frag[1]) : parEl.lastChild,
 		newSibs		= null;
 
 	var tmpSib = null;
@@ -104,8 +107,13 @@ export function syncChildren(node, parEl) {
 			if (lftSib)
 				var lsNode = lftSib._node;
 
+			if (lftSib && lsNode.type == FRAGMENT) {
+				console.log("poo from lft!", lsNode);
+//				break converge;
+			}
+
 			// remove any non-recycled sibs whose el.node has the old parent
-			if (lftSib && !lsNode.recycled && lsNode.parent != parEl._node) {
+			if (lftSib && lsNode.parent != node) {		// && !lsNode.recycled &&
 				tmpSib = nextSib(lftSib);
 				lsNode.vmid != null ? lsNode.vm().unmount(true) : removeChild(parEl, lftSib);
 				lftSib = tmpSib;
@@ -118,9 +126,16 @@ export function syncChildren(node, parEl) {
 				insertBefore(parEl, hydrate(lftNode), lftSib);		// lftNode.vmid != null ? lftNode.vm().mount(parEl, false, true, lftSib) :
 				lftNode = nextNode(lftNode, body);
 			}
+			else if (lftNode.type == FRAGMENT && lftSib._node == lftNode) {
+				lftSib = nextSib(lftNode.vm()._frag[1]);
+				lftNode = nextNode(lftNode, body);
+			}
 			else if (lftNode.el === lftSib) {
 				lftNode = nextNode(lftNode, body);
 				lftSib = nextSib(lftSib);
+				// if reached right bounding edge of fragment node
+				if (lftSib != null && lftSib._node == node)
+					break converge;
 			}
 			else
 				break;
@@ -132,7 +147,12 @@ export function syncChildren(node, parEl) {
 			if (rgtSib)
 				var rsNode = rgtSib._node;
 
-			if (rgtSib && !rsNode.recycled && rsNode.parent != parEl._node) {
+			if (rgtSib && rsNode.type == FRAGMENT) {
+				console.log("poo from rgt!", rsNode);
+//				break converge;
+			}
+
+			if (rgtSib && rsNode.parent != node) {
 				tmpSib = prevSib(rgtSib);
 				rsNode.vmid != null ? rsNode.vm().unmount(true) : removeChild(parEl, rgtSib);
 				rgtSib = tmpSib;
@@ -148,6 +168,9 @@ export function syncChildren(node, parEl) {
 			else if (rgtNode.el === rgtSib) {
 				rgtNode = prevNode(rgtNode, body);
 				rgtSib = prevSib(rgtSib);
+				// if reached left bounding edge of fragment node
+				if (rgtSib != null && rgtSib._node == node)
+					break converge;
 			}
 			else
 				break;

@@ -1,4 +1,4 @@
-import { ELEMENT, TEXT, COMMENT, VVIEW, VMODEL } from './VTYPES';
+import { ELEMENT, TEXT, COMMENT, FRAGMENT, VVIEW, VMODEL } from './VTYPES';
 import { isArr } from '../utils';
 import { views } from './ViewModel';
 import { syncChildren } from './syncChildren';
@@ -51,7 +51,12 @@ export function patch(vnode, donor) {
 	donor.hooks && fireHooks("willRecycle", donor, vnode);
 
 	var el = vnode.el = donor.el;
-	donor.recycled = true;
+//	donor.recycled = true;
+
+	if (vnode.type == FRAGMENT) {
+		var frag = vnode.vm()._frag;
+		frag[0]._node = frag[1]._node = vnode;
+	}
 
 	var obody = donor.body;
 	var nbody = vnode.body;
@@ -97,7 +102,7 @@ export function patch(vnode, donor) {
 			}
 			else {
 				while (el.firstChild)
-					el.removeChild(el.firstChild);
+					el.removeChild(el.firstChild);	// TODO: removeNode
 			}
 		}
 	}
@@ -106,7 +111,7 @@ export function patch(vnode, donor) {
 		if (newIsArr) {
 		//	console.log('"" => []', obody, nbody);	// hydrate new here?
 			while (el.firstChild)
-				el.removeChild(el.firstChild);
+				el.removeChild(el.firstChild);		// TODO: removeNode
 			patchChildren(vnode, donor);
 		}
 		// "" | null => "" | null
@@ -136,7 +141,7 @@ function patchChildren(vnode, donor) {
 		var node2 = nbody[i];
 		var type2 = node2.type;
 
-		if (type2 == ELEMENT || type2 == TEXT || type2 == COMMENT) {
+		if (type2 == ELEMENT || type2 == TEXT || type2 == COMMENT || type2 == FRAGMENT) {
 			if (donor2 = findDonorNode(node2, vnode, donor, fromIdx))
 				patch(node2, donor2);
 		}
@@ -161,5 +166,6 @@ function patchChildren(vnode, donor) {
 	}
 
 	if (!(vnode.flags & FIXED_BODY))
-		syncChildren(vnode, vnode.el);
+		syncChildren(vnode);		// this will fail for nested fragments?
+	//	syncChildren(vnode, vnode.type == FRAGMENT ? vnode.parent.el : vnode.el);		// this will fail for nested fragments?
 }

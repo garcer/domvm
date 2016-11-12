@@ -451,7 +451,7 @@ var VNodeProto = VNode.prototype = {
 	vmid:	null,
 
 	// if fragment node, this is set to a [head, tail] tuple of wrapping CommentNodes
-	_frag: null,
+	_frag:	null,
 
 	// all this stuff can just live in attrs (as defined) just have getters here for it
 	key:	null,
@@ -471,6 +471,8 @@ var VNodeProto = VNode.prototype = {
 
 	idx:	null,
 	parent:	null,
+
+//	recycled: false,
 
 	// transient flags maintained for cleanup passes, delayed hooks, etc
 //	_recycled:		false,		// true when findDonor/graft pass is done
@@ -603,20 +605,32 @@ function defineElement(tag, arg1, arg2, flags) {
 	return node;
 }
 
+var doc = document;
+
 function createElement(tag) {
-	return document.createElement(tag);
+	return doc.createElement(tag);
 }
 
 function createTextNode(body) {
-	return document.createTextNode(body);
+	return doc.createTextNode(body);
 }
 
 function createComment(body) {
-	return document.createComment(body);
+	return doc.createComment(body);
 }
 
+
 function createFragment() {
-	return document.createDocumentFragment();
+	return doc.createDocumentFragment();
+}
+
+// gets closest dom parentNode given a vnode
+function parentEl(node) {
+	do {
+		node = node.parent;
+		if (node != null && node.el != null && node.el.nodeType == 1)
+			{ return node.el; }
+	} while (1);
 }
 
 /*
@@ -761,7 +775,8 @@ function hydrate(vnode, withEl) {
 				tail = createComment("/" + vnode.vmid);
 
 			head._node = tail._node = vnode;
-			vnode._frag = [head, tail];
+		//	vnode._frag = [head, tail];
+			vnode.vm()._frag = [head, tail];
 			vnode.el = createFragment();
 			insertBefore(vnode.el, head);
 			hydrateBodyArr(vnode);
@@ -779,9 +794,7 @@ function hydrateBodyArr(vnode) {
 		var vnode2 = vnode.body[i];
 		var type2 = vnode2.type;
 
-		if (type2 == ELEMENT || type2 == TEXT || type2 == COMMENT)
-			{ insertBefore(vnode.el, hydrate(vnode2)); }		// vnode.el.appendChild(hydrate(vnode2))
-		else if (type2 == VVIEW) {
+		if (type2 == VVIEW) {
 			var vm = createView(vnode2.view, vnode2.model, vnode2.key, vnode2.opts)._redraw(vnode, i, false);		// todo: handle new model updates
 			insertBefore(vnode.el, hydrate(vm.node));
 		}
@@ -790,6 +803,8 @@ function hydrateBodyArr(vnode) {
 			vm._redraw(vnode, i);					// , false
 			insertBefore(vnode.el, vm.node.el);		// , hydrate(vm.node)
 		}
+		else		// ELEMENT, TEXT, COMMENT, FRAGMENT
+			{ insertBefore(vnode.el, hydrate(vnode2)); }		// vnode.el.appendChild(hydrate(vnode2))
 	}
 }
 
@@ -868,14 +883,16 @@ function cmpElNodeIdx(a, b) {
 	return a._node.idx - b._node.idx;
 }
 
-function syncChildren(node, parEl) {
+function syncChildren(node) {
+	var parEl = node.type == FRAGMENT ? parentEl(node) : node.el;
 	var body = node.body;
+
 	// breaking condition is convergance
 
 	var lftNode		= body[0],
-		lftSib		= parEl.firstChild,
+		lftSib		= node.type == FRAGMENT ? nextSib(node.vm()._frag[0]) : parEl.firstChild,
 		rgtNode		= body[body.length - 1],
-		rgtSib		= parEl.lastChild,
+		rgtSib		= node.type == FRAGMENT ? prevSib(node.vm()._frag[1]) : parEl.lastChild,
 		newSibs		= null;
 
 	var tmpSib = null;
@@ -896,8 +913,13 @@ function syncChildren(node, parEl) {
 			if (lftSib)
 				{ var lsNode = lftSib._node; }
 
+			if (lftSib && lsNode.type == FRAGMENT) {
+				console.log("poo from lft!", lsNode);
+//				break converge;
+			}
+
 			// remove any non-recycled sibs whose el.node has the old parent
-			if (lftSib && !lsNode.recycled && lsNode.parent != parEl._node) {
+			if (lftSib && lsNode.parent != node) {		// && !lsNode.recycled &&
 				tmpSib = nextSib(lftSib);
 				lsNode.vmid != null ? lsNode.vm().unmount(true) : removeChild(parEl, lftSib);
 				lftSib = tmpSib;
@@ -910,9 +932,16 @@ function syncChildren(node, parEl) {
 				insertBefore(parEl, hydrate(lftNode), lftSib);		// lftNode.vmid != null ? lftNode.vm().mount(parEl, false, true, lftSib) :
 				lftNode = nextNode(lftNode, body);
 			}
+			else if (lftNode.type == FRAGMENT && lftSib._node == lftNode) {
+				lftSib = nextSib(lftNode.vm()._frag[1]);
+				lftNode = nextNode(lftNode, body);
+			}
 			else if (lftNode.el === lftSib) {
 				lftNode = nextNode(lftNode, body);
 				lftSib = nextSib(lftSib);
+				// if reached right bounding edge of fragment node
+				if (lftSib != null && lftSib._node == node)
+					{ break converge; }
 			}
 			else
 				{ break; }
@@ -924,7 +953,12 @@ function syncChildren(node, parEl) {
 			if (rgtSib)
 				{ var rsNode = rgtSib._node; }
 
-			if (rgtSib && !rsNode.recycled && rsNode.parent != parEl._node) {
+			if (rgtSib && rsNode.type == FRAGMENT) {
+				console.log("poo from rgt!", rsNode);
+//				break converge;
+			}
+
+			if (rgtSib && rsNode.parent != node) {
 				tmpSib = prevSib(rgtSib);
 				rsNode.vmid != null ? rsNode.vm().unmount(true) : removeChild(parEl, rgtSib);
 				rgtSib = tmpSib;
@@ -940,6 +974,9 @@ function syncChildren(node, parEl) {
 			else if (rgtNode.el === rgtSib) {
 				rgtNode = prevNode(rgtNode, body);
 				rgtSib = prevSib(rgtSib);
+				// if reached left bounding edge of fragment node
+				if (rgtSib != null && rgtSib._node == node)
+					{ break converge; }
 			}
 			else
 				{ break; }
@@ -1001,7 +1038,12 @@ function patch(vnode, donor) {
 	donor.hooks && fireHooks("willRecycle", donor, vnode);
 
 	var el = vnode.el = donor.el;
-	donor.recycled = true;
+//	donor.recycled = true;
+
+	if (vnode.type == FRAGMENT) {
+		var frag = vnode.vm()._frag;
+		frag[0]._node = frag[1]._node = vnode;
+	}
 
 	var obody = donor.body;
 	var nbody = vnode.body;
@@ -1047,7 +1089,7 @@ function patch(vnode, donor) {
 			}
 			else {
 				while (el.firstChild)
-					{ el.removeChild(el.firstChild); }
+					{ el.removeChild(el.firstChild); }	// TODO: removeNode
 			}
 		}
 	}
@@ -1056,7 +1098,7 @@ function patch(vnode, donor) {
 		if (newIsArr) {
 		//	console.log('"" => []', obody, nbody);	// hydrate new here?
 			while (el.firstChild)
-				{ el.removeChild(el.firstChild); }
+				{ el.removeChild(el.firstChild); }		// TODO: removeNode
 			patchChildren(vnode, donor);
 		}
 		// "" | null => "" | null
@@ -1086,7 +1128,7 @@ function patchChildren(vnode, donor) {
 		var node2 = nbody[i];
 		var type2 = node2.type;
 
-		if (type2 == ELEMENT || type2 == TEXT || type2 == COMMENT) {
+		if (type2 == ELEMENT || type2 == TEXT || type2 == COMMENT || type2 == FRAGMENT) {
 			if (donor2 = findDonorNode(node2, vnode, donor, fromIdx))
 				{ patch(node2, donor2); }
 		}
@@ -1111,7 +1153,8 @@ function patchChildren(vnode, donor) {
 	}
 
 	if (!(vnode.flags & FIXED_BODY))
-		{ syncChildren(vnode, vnode.el); }
+		{ syncChildren(vnode); }		// this will fail for nested fragments?
+	//	syncChildren(vnode, vnode.type == FRAGMENT ? vnode.parent.el : vnode.el);		// this will fail for nested fragments?
 }
 
 function setRef(vm, name, node) {
@@ -1138,8 +1181,12 @@ function preProc(vnew, parent, idx, ownVmid, extKey) {		// , parentVm
 	// injected and declared elems/text/comments/fragments
 	else {
 		// convert any non-root fragment nodes to plain arrays
-		if (vnew.type === FRAGMENT && ownVmid == null)
-			{ parent.body = vnew.body; }
+		if (vnew.type === FRAGMENT && ownVmid == null) {
+			parent.body.push.apply(parent.body, vnew.body);
+			vnew = parent;
+			// this must dig through layers of fragments
+			// figure out own indcies in parent, only iterate parent body partially..
+		}
 		else {
 			vnew.parent = parent;
 			vnew.idx = idx;
@@ -1539,9 +1586,14 @@ function defineComment(body) {
 	return new VNode(COMMENT).body(body);
 }
 
-function defineFragment(body) {
+function defineFragment(body, flags) {
 	var node = new VNode(FRAGMENT);
+
 	node.body = body;
+
+	if (flags != null)
+		{ node.flags = flags; }
+
 	return node;
 }
 

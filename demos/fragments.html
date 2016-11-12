@@ -64,7 +64,11 @@
 				{sku: "b", price: 20.00, qty: 3},
 			];
 
-			domvm.createView(TableView, table).mount(document.body);
+			var vm = domvm.createView(TableView, table).mount(document.body);
+
+			setTimeout(function() {
+				vm.redraw(true);
+			}, 2000);
 		</script>
 	</body>
 </html>
