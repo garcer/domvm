@@ -36,7 +36,11 @@
 						el("tbody", table.map(item =>
 							vw(TableItemView, item)
 						)),
-						el("tfoot"),
+						el("tfoot", [
+							fr([
+								el("tr", [el("td", {colspan: 3}, "I AM TFOOT!")])
+							])
+						]),
 					]);
 				};
 			}

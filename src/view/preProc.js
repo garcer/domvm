@@ -1,4 +1,4 @@
-import { ELEMENT, TEXT, COMMENT, VVIEW, VMODEL } from './VTYPES';
+import { ELEMENT, TEXT, COMMENT, FRAGMENT, VVIEW, VMODEL } from './VTYPES';
 import { isVal, isArr, isFunc, insertArr, deepSet } from '../utils';
 import { isStream, streamVal } from '../streamCfg';
 import { hookStream } from './utils';
@@ -24,18 +24,23 @@ export function preProc(vnew, parent, idx, ownVmid, extKey) {		// , parentVm
 	else if (vnew.type === VVIEW) {
 
 	}
-	// injected and declared elems/text/comments
+	// injected and declared elems/text/comments/fragments
 	else {
-		vnew.parent = parent;
-		vnew.idx = idx;
-		vnew.vmid = ownVmid;
+		// convert any non-root fragment nodes to plain arrays
+		if (vnew.type === FRAGMENT && ownVmid == null)
+			parent.body = vnew.body;
+		else {
+			vnew.parent = parent;
+			vnew.idx = idx;
+			vnew.vmid = ownVmid;
 
-		// set external ref eg vw(MyView, data, "^moo")
-		if (extKey != null && typeof extKey == "string" && extKey[0] == "^")
-			vnew.ref = extKey;
+			// set external ref eg vw(MyView, data, "^moo")
+			if (extKey != null && typeof extKey == "string" && extKey[0] == "^")
+				vnew.ref = extKey;
 
-		if (vnew.ref != null)
-			setRef(vnew.vm(), vnew.ref, vnew);
+			if (vnew.ref != null)
+				setRef(vnew.vm(), vnew.ref, vnew);
+		}
 
 		if (isArr(vnew.body)) {
 		// declarative elems, comments, text nodes
